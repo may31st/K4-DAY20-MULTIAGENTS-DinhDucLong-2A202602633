@@ -8,7 +8,7 @@
 
 - Mô hình: `gpt-6-luna` (OpenAI provider, cấu hình qua `LAB_MODEL=openai:gpt-6-luna`), nhiệt độ `LAB_TEMPERATURE=1`, `recursion_limit=60`
 - Phiên bản Deep Agents: `deepagents 0.7.21`, Windows 11, môi trường Python 3.12 venv
-- Số lần chạy tác vụ đã dùng / ngân sách: 9 / 30
+- Số lần chạy tác vụ đã dùng / ngân sách: 21 / 30
 - Commit của tag `freeze`: `f2fa551`
 
 ## 2. Giả thuyết (commit trước tag `freeze`, Phần 4.0)
