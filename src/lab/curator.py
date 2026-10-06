@@ -68,9 +68,95 @@ def curate_skills(results_dir="results", source_condition="baseline", out_dir=No
     model mặc định: make_model() (lab.model).
     Trả về: danh sách đường dẫn SKILL.md đã ghi.
     """
-    raise NotImplementedError("TODO: cài đặt curate_skills (xem guides/pseudocode/04_curator.md)")
+    import json
+    from .tasks import ROOT
+
+    if out_dir is None:
+        out_dir = ROOT / "skills" / "auto"
+    else:
+        out_dir = Path(out_dir)
+
+    results_path = Path(results_dir) / source_condition
+    runs = []
+    if results_path.exists():
+        for task_dir in sorted(results_path.iterdir()):
+            run_file = task_dir / "run.json"
+            if not run_file.exists():
+                continue
+            try:
+                r = json.loads(run_file.read_text(encoding="utf-8"))
+            except Exception:
+                continue
+            if r.get("role") != "learn":
+                continue
+            failed = [c for c in r.get("checks", []) if not c.get("passed")]
+            trace_file = task_dir / "trace.md"
+            trace_content = trace_file.read_text(encoding="utf-8") if trace_file.exists() else ""
+            runs.append({
+                "task": r.get("task", task_dir.name),
+                "failed": failed,
+                "trace": trace_content[-6000:] if trace_content else "",
+            })
+
+    failed_runs = [r for r in runs if r["failed"]]
+    if not failed_runs:
+        print("Warning: Không có check thất bại nào ở tác vụ học; bỏ qua gọi mô hình.")
+        return []
+
+    runs_text = []
+    for run in failed_runs:
+        lines = [f"Task: {run['task']}"]
+        lines.append("Failed checks:")
+        for c in run["failed"]:
+            lines.append(f"  - {c.get('name')}: {c.get('detail', '')}")
+        if run.get("trace"):
+            lines.append(f"Trace:\n{run['trace']}")
+        runs_text.append("\n".join(lines))
+    runs_summary = "\n\n---\n\n".join(runs_text)
+
+    prompt = (
+        f"You write procedural SKILLS for a coding and data analysis agent.\n"
+        f"Below are the failed checks (check names and evaluation bot feedback) and traces from recent learning runs.\n"
+        f"Identify common procedural errors and organizational rules (not specific answers) and write up to {max_skills} short skills that help avoid these errors on NEW tasks of the same type.\n\n"
+        f"Rules:\n"
+        f"- Skills must be general: do not mention specific task IDs, task-specific file names, answers, or exact numbers.\n"
+        f"- Each skill must have YAML frontmatter with `name` (lowercase alphanumeric and hyphens) and `description` (one sentence: WHEN TO USE), followed by at most 40 lines of imperative procedural instructions (checklists work best).\n"
+        f"- Format your response EXACTLY as follows for each skill:\n"
+        f"=== SKILL: <name> ===\n"
+        f"---\n"
+        f"name: <name>\n"
+        f"description: <when to use>\n"
+        f"---\n"
+        f"<content>\n"
+        f"=== END ===\n\n"
+        f"Here are the failed learning runs:\n"
+        f"{runs_summary}\n"
+    )
+
+    if model is None:
+        from .model import make_model
+        model = make_model()
+
+    reply = model.invoke(prompt).content
+    blocks = parse_skill_blocks(str(reply))
+
+    written = []
+    for name, text in blocks:
+        if len(written) >= max_skills:
+            break
+        problems = validate_skill(text, expected_name=name)
+        if problems:
+            continue
+        skill_dir = out_dir / name
+        skill_dir.mkdir(parents=True, exist_ok=True)
+        skill_file = skill_dir / "SKILL.md"
+        skill_file.write_text(text.strip() + "\n", encoding="utf-8")
+        written.append(skill_file)
+
+    return written
 
 
 if __name__ == "__main__":
     for p in curate_skills():
         print("wrote", p)
+
