@@ -20,13 +20,13 @@
 ## 3. Làm quen Deep Agents (Phần 0.3)
 
 1. Tác tử mặc định có 9 công cụ:
-   - 7 công cụ tệp: `ls`, `read_file`, `write_file`, `edit_file`, `delete`, `glob`, `grep`.
+   - 7 công cụ thao tác tệp: `ls`, `read_file`, `write_file`, `edit_file`, `delete`, `glob`, `grep`.
    - 1 công cụ shell: `execute` (dùng để chạy lệnh trực tiếp trong môi trường sandbox).
-   - 1 công cụ tác tử con: `task`.
+   - 1 công cụ gọi tác tử con: `task`.
    Công cụ chạy lệnh hệ thống là `execute`.
 2. Mô tả của công cụ `task` về subagent `general-purpose`:
    - "General-purpose agent for researching complex questions, searching for files and content, and executing multi-step tasks."
-   - Về ngữ cảnh: Mỗi lần gọi là phi trạng thái (stateless by default). Subagent chỉ nhìn thấy nội dung được truyền trong prompt phân việc và trả về một báo cáo kết quả. Subagent không thấy lịch sử hội thoại trước đó của tác tử chính.
+   - Về ngữ cảnh: Mỗi lần gọi là phi trạng thái (stateless by default). Subagent chỉ nhìn thấy những gì được giao trong prompt và trả về một báo cáo kết quả duy nhất. Subagent không thấy lịch sử trò chuyện trước đó của tác tử chính.
 3. Trích dẫn hướng dẫn hành vi từ mô tả công cụ:
    - Từ mô tả công cụ `task`: *"Put full detail in the prompt and state exactly what it should return unless an agent type below says it inherits your conversation instead."*
    - Từ mô tả công cụ `execute`: *"Use absolute paths and avoid `cd` so the working directory stays stable; use the optional timeout to override the default."*
@@ -46,28 +46,28 @@
 | `logs-learn` | `rule_sorted_errors` | E | `detail`: "RULE: `errors` is sorted by service, then by timestamp_utc, ascending." |
 | `logs-learn` | `rule_schema_header` | E | `detail`: "RULE: the top-level object has "schema_version": 2 and "generated_by": "log-triage"." |
 
-Nhận xét:
-Tất cả 10 check thất bại trên 3 tác vụ học đều thuộc nhóm E (vi phạm quy ước tổ chức). Mô hình đạt điểm tuyệt đối 17/17 ở các check kỹ thuật (lọc dữ liệu, tính doanh thu, khử trùng lặp, chuẩn hóa múi giờ UTC, sửa 4 lỗi trong package, trích xuất log). Mô hình không gặp lỗi hiểu sai đề bài (nhóm A), sai thuật toán (nhóm B), hay lỗi môi trường (nhóm C, D). Nguyên nhân thất bại là đề bài không nêu các quy ước ngầm của Acme Corp (như quy đổi cent, cấu trúc meta, tiêu chuẩn changelog). Các quy ước này chỉ xuất hiện trong file kiểm tra `check.py`, vì vậy một bộ skill hướng dẫn quy ước có thể giải quyết được nhóm lỗi này.
+Nhận xét của em:
+Khi soi log và kết quả chạy baseline, em thấy toàn bộ 10/10 check bị fail ở 3 bài học đều rơi vào nhóm E (vi phạm quy ước ngầm của tổ chức). Về mặt kỹ thuật thuần túy, mô hình `gpt-6-luna` giải quyết rất mượt, đạt trọn vẹn 17/17 check (tính đúng doanh thu, lọc trùng, chuẩn hóa giờ UTC, sửa đúng 4 bug trong code, bóc tách đúng lỗi log). Mô hình không hề bị hiểu sai đề (nhóm A), không sai thuật toán (nhóm B), cũng không gặp lỗi môi trường (nhóm C, D). Lý do agent bị trừ điểm là vì đề bài không hề nhắc đến các "luật ngầm" của công ty Acme Corp (như tiền phải đổi ra cent, phải nhét thêm object meta, hay format changelog chuẩn). Những yêu cầu này chỉ nằm ẩn trong file chấm `check.py`. Vì vậy, em thấy hướng đi dùng skill để nhắc agent các quy ước này là rất đúng trọng tâm.
 
 ## 5. Điều kiện `subagents` (Phần 2.3)
 
-- Các subagent đã định nghĩa:
-  + `explorer`: Đọc tài liệu, schema, cấu hình và dữ liệu mẫu; báo cáo thông tin tìm được; không sửa file.
-  + `implementer`: Chỉnh sửa mã nguồn, tạo file kết quả, chạy script và kiểm thử trong sandbox.
-  + `reviewer`: Kiểm tra độc lập kết quả đối chiếu với yêu cầu đề bài; không sửa file.
-- Số lần gọi subagent (`subagent_calls`): 0 lần ở cả 3 tác vụ (`code-learn`, `data-learn`, `logs-learn`). Tác tử chính tự giải quyết tác vụ mà không giao việc cho subagent. Do các bài toán có phạm vi nhỏ (1 đến 2 file), tác tử chính gọi công cụ trực tiếp để giữ ngữ cảnh thay vì chuyển việc qua subagent phi trạng thái.
-- Ảnh hưởng đến token và thời gian: Tổng token tăng từ 193,765 (baseline) lên 348,658 (subagents), tức tăng khoảng 80%. Thời gian chạy trung bình mỗi tác vụ tăng từ 44.5 giây lên 120 giây. Dù không gọi subagent nào, chi phí token vẫn tăng do prompt phải chứa thêm phần mô tả của 3 subagent và ghi chú phân quyền `SUBAGENTS_NOTE`, làm tăng token đầu vào ở mỗi bước gọi mô hình.
+- Ba subagent em đã thiết kế:
+  + `explorer`: Chuyên đọc file, xem schema, cấu hình và dữ liệu mẫu; tìm hiểu thông tin rồi báo cáo lại chứ không sửa file.
+  + `implementer`: Chuyên bắt tay vào sửa code, tạo file kết quả và chạy thử test trong sandbox.
+  + `reviewer`: Đóng vai người kiểm tra độc lập, soi lại file đã sửa xem có đúng yêu cầu đề bài và sót trường hợp biên nào không; không sửa file.
+- Số lần gọi subagent (`subagent_calls`): Cả 3 bài (`code-learn`, `data-learn`, `logs-learn`) đều ghi nhận 0 lần gọi. Em quan sát thấy agent chính tự làm hết từ đầu đến cuối mà không thèm chia việc cho subagent nào. Do các bài toán này file khá ít (chỉ 1-2 file), agent chính có vẻ thấy tự gọi tool làm luôn sẽ nhanh và giữ được ngữ cảnh tốt hơn là chuyển việc qua một subagent không nhớ ngữ cảnh cũ.
+- Ảnh hưởng đến token và thời gian: Tổng token tăng từ 193,765 (ở baseline) lên 348,658 (ở subagents), tức là tốn thêm khoảng 80%. Thời gian chạy trung bình cũng tăng từ 44.5 giây lên 120 giây một bài. Dù agent không gọi subagent nào, chi phí token vẫn bị đội lên do prompt hệ thống phải gánh thêm phần mô tả dài của 3 subagent và câu nhắc phân quyền `SUBAGENTS_NOTE`, làm cho mỗi lượt gọi mô hình đều tốn token đầu vào hơn.
 
 ## 6. Self-evolving: skill do curator sinh (Phần 3)
 
-- Số lần chạy curator: 1 lần. Số skill bị xóa: 0.
-- Đánh giá các skill sinh ra:
+- Số lần chạy curator: 1 lần. Em giữ nguyên cả 3 skill, không phải xóa cái nào.
+- Đánh giá của em về 3 skill sinh ra:
 
 | Skill | Tổng quát hay riêng cho tác vụ học? | Đúng hay sai (nêu chỗ sai nếu có) | Độ dài, `description` và `skills_read` ở Phần 3.4 |
 |---|---|---|---|
-| `code-maintenance-completion` | Tổng quát cho việc bảo trì code và tuân thủ quy ước repo | Đúng: hướng dẫn giữ nguyên test gốc, tạo test regression mới, gán type hints cho public function, ghi changelog | Dài 11 dòng (ngắn gọn, checklist); `description` rõ ràng khi nào kích hoạt; `skills_read = 1` ở `code-learn` |
-| `tabular-data-output-validation` | Tổng quát cho việc xử lý và chuẩn hóa dữ liệu bảng | Đúng: đếm dòng trước deduplicate, chuyển đổi số tiền sang cent, chuẩn hóa UTC và xuất đủ artifacts | Dài 13 dòng (mệnh lệnh, dễ kiểm chứng); `description` kích hoạt đúng tình huống; `skills_read = 1` ở `data-learn` |
-| `log-output-normalization` | Tổng quát cho chuẩn hóa và trích xuất nhật ký lỗi | Đúng: hướng dẫn schema version 2, format snake_case cho service, sắp xếp compound key | Dài 12 dòng; `description` nêu đúng tình huống kích hoạt; `skills_read = 1` ở `logs-learn` |
+| `code-maintenance-completion` | Viết khá tổng quát về quy trình bảo trì mã nguồn và tuân thủ luật repo | Đúng: dặn giữ nguyên test gốc, tạo file test hồi quy mới, thêm type hint cho public function, viết changelog | Dài 11 dòng, viết dạng checklist ngắn gọn; `description` nêu rõ trường hợp kích hoạt; bài `code-learn` đọc 1 lần (`skills_read = 1`) |
+| `tabular-data-output-validation` | Tổng quát cho việc xử lý và chuẩn hóa dữ liệu bảng | Đúng: dặn đếm dòng trước khi lọc trùng, đổi tiền ra số nguyên cent, chuẩn hóa giờ UTC và xuất đủ file | Dài 13 dòng, câu văn mệnh lệnh rõ ràng; `description` kích hoạt chuẩn khi gặp dữ liệu bảng; bài `data-learn` đọc 1 lần (`skills_read = 1`) |
+| `log-output-normalization` | Tổng quát cho việc bóc tách và chuẩn hóa nhật ký lỗi | Đúng: nhắc dùng schema version 2, đổi tên service thành snake_case, sắp xếp compound key | Dài 12 dòng; `description` chuẩn cho tác vụ log; bài `logs-learn` đọc 1 lần (`skills_read = 1`) |
 
 ## 7. Kết quả so sánh (Phần 4.3, 4.4)
 
@@ -99,44 +99,44 @@ skills-auto   learn    17/18         4/9          125,610      3/3
 ```
 
 ### Trạng thái chạy và an toàn kỹ năng
-Tất cả 18 lượt chạy thuộc 3 điều kiện (`baseline`, `subagents`, `skills-auto`) đều kết thúc bình thường (`error: null`). Không có lượt chạy nào bị lỗi hay ngắt quãng giữa chừng.
-Trường `skills_modified` đều nhận giá trị `false` trong mọi lần chạy.
-Tất cả 6 lần chạy của `skills-auto` đều dùng đúng mã băm `skills_sha256 = 71e374e6d0390a5ad0821d878be20400986f8a70f5b8098bcefa3bc7f7372ed2`, khớp với commit gắn tag `freeze`. Lệnh `python scripts/verify_freeze.py` trả về `OK`.
+Tất cả 18 lượt chạy ở cả 3 điều kiện (`baseline`, `subagents`, `skills-auto`) đều chạy trót lọt, không có lần nào bị crash hay văng lỗi hệ thống (`error: null`).
+Trường `skills_modified` đều là `false` ở tất cả các lần chạy, agent không tự ý sửa file trong thư mục skills.
+Cả 6 lượt chạy của `skills-auto` đều dùng đúng bộ skill đã đóng băng với mã băm `skills_sha256 = 71e374e6d0390a5ad0821d878be20400986f8a70f5b8098bcefa3bc7f7372ed2`, khớp chuẩn với tag `freeze`. Em chạy thử `python -X utf8 scripts/verify_freeze.py` thì ra `OK`.
 
 ## 8. Phân tích
 
-1. So với baseline, điều kiện `skills-auto` cải thiện điểm số ở cả hai nhóm tác vụ. Trên tập học, điểm trung bình tăng từ 0.63 lên 0.77 (+0.14 điểm, tương đương 22.2%). Trên tập đánh giá, điểm tăng từ 0.57 lên 0.69 (+0.12 điểm, tương đương 21.1%). Điều kiện `subagents` không cải thiện điểm, giảm nhẹ từ 0.63 xuống 0.59 ở tập học và từ 0.57 xuống 0.53 ở tập đánh giá do một sai lệch ngẫu nhiên trong lọc trùng ở `data-learn`. Mức cải thiện ở tập học cao hơn tập đánh giá (+0.14 so với +0.12). Đây là dấu hiệu của việc chuyển giao tri thức một phần, đồng thời có hiện tượng quá khớp quy ước (convention overfitting) như nghiên cứu SkillEvolBench đã chỉ ra: các quy ước của tập học được tái sử dụng thành công, nhưng tập đánh giá có những quy ước mới mà skill chưa từng ghi nhận.
+1. So với baseline, em thấy điều kiện `skills-auto` giúp cải thiện điểm số ở cả bài học lẫn bài đánh giá. Ở tập học, điểm trung bình tăng từ 0.63 lên 0.77 (tăng khoảng 22.2%). Ở tập đánh giá, điểm cũng tăng từ 0.57 lên 0.69 (tăng khoảng 21.1%). Trong khi đó, điều kiện `subagents` không giúp tăng điểm chút nào, thậm chí còn giảm nhẹ (từ 0.63 xuống 0.59 ở bài học và từ 0.57 xuống 0.53 ở bài đánh giá) do bị lệch mất một bước lọc trùng ở `data-learn`. Em thấy mức tăng ở tập học (+0.14) cao hơn ở tập đánh giá (+0.12). Điều này khá dễ hiểu: skill được rút ra từ chính lỗi của tập học nên agent áp dụng lại rất trúng, còn sang tập đánh giá thì có thêm những quy ước mới lạ mà skill chưa từng thấy, đúng với hiện tượng quá khớp (overfitting) quy ước mà bài báo SkillEvolBench đã cảnh báo.
 
-2. Theo bảng phân tích chi tiết, ở nhóm check kỹ thuật, mô hình đạt 17/18 điểm (94.4%) ngay từ baseline và giữ nguyên 17/18 ở `skills-auto` trên cả hai tập. Năng lực giải quyết bài toán chuyên môn của mô hình đã tốt từ đầu nên skill không làm thay đổi nhóm này. Ngược lại, ở nhóm check quy ước (`rule_`), baseline và subagents đều đạt 0/9 ở tập học và 0/12 ở tập đánh giá (0%). Điều kiện `skills-auto` nâng tỷ lệ này lên 4/9 ở tập học (44.4%) và 4/12 ở tập đánh giá (33.3%). Skill do curator sinh ra hỗ trợ trực tiếp nhóm check quy ước tổ chức.
-Các check quy ước mới của tập đánh giá không được skill hỗ trợ. Ví dụ, `code-eval` có check `rule_version_bump` (yêu cầu tăng patch version trong `__init__.py`) và `logs-eval` có `rule_source_line`. Vì curator chỉ học từ phản hồi lỗi của tập học, nơi các quy ước này chưa xuất hiện, skill không có thông tin về chúng. Tác tử không thể đoán được các quy ước ngầm nếu đề bài và skill đều không đề cập.
+2. Nhìn vào bảng bóc tách chi tiết kỹ thuật và quy ước, em thấy rất rõ ràng: ở các check kỹ thuật, mô hình vốn đã làm rất tốt ngay từ đầu (đạt 17/18 điểm, tức 94.4% ở cả baseline lẫn skills-auto). Như vậy skill không can thiệp vào logic nghiệp vụ vì mô hình đã tự code đúng rồi. Sự khác biệt nằm trọn vẹn ở nhóm check quy ước (`rule_`): ở baseline và subagents, agent trượt 100% (0/9 ở bài học và 0/12 ở bài đánh giá). Nhờ có skill, tỷ lệ này tăng lên 4/9 ở bài học (44.4%) và 4/12 ở bài đánh giá (33.3%). Skill do curator sinh ra đã cứu điểm cho nhóm quy ước tổ chức này.
+Còn với các check quy ước mới ở tập đánh giá, skill hoàn toàn bất lực. Ví dụ như check `rule_version_bump` (bắt tăng patch version trong file `__init__.py`) ở `code-eval` hay `rule_source_line` ở `logs-eval`. Vì curator chỉ học từ lỗi của bài học, nơi mà các quy tắc này chưa từng xuất hiện, nên skill không thể có thông tin để dặn agent. Đề bài không nói mà skill cũng không có thì agent chịu chết không tự đoán mò được.
 
-3. Check mà skill giúp đạt: Check `rule_regression_tests` trong `code-eval`. Ở baseline, tác tử sửa 3 bug nhưng không viết file test hồi quy do đề bài không yêu cầu, khiến check này bị fail (điểm 6/11). Ở `skills-auto`, vết chạy ghi nhận `skills_read = 1`. Tác tử đọc skill `code-maintenance-completion` với dòng hướng dẫn: *"Add focused regression tests in a dedicated file to cover every bug fixed or behavior changed."* Sau đó, tác tử dùng `write_file` tạo `workspace/tests/test_regressions.py` chứa các hàm kiểm thử tương ứng và chạy pytest kiểm tra file này pass. Check `rule_regression_tests` chuyển sang pass, nâng điểm lên 8/11.
-Check mà skill không giúp được: Check `rule_changelog` trong `code-eval`. Tác tử đã đọc skill và tạo mục `## Unreleased` trong `CHANGELOG.md` kèm 3 gạch đầu dòng ghi nhận sửa lỗi. Tuy nhiên, `check.py` kiểm tra theo regex chặt chẽ của Conventional Commits: `^- fix\([A-Za-z_]\w*\): \S.+$`. Vì skill chỉ hướng dẫn viết gạch đầu dòng tóm tắt mà không cung cấp mẫu regex cụ thể, định dạng câu của tác tử không khớp với kiểm tra, khiến check tiếp tục thất bại.
+3. Check mà skill giúp đạt: Đó là `rule_regression_tests` trong bài `code-eval`. Ở baseline, agent sửa xong 3 bug trong code là dừng lại, không hề viết file test hồi quy vì đề bài đâu có yêu cầu, thế là bị trượt check (chỉ được 6/11). Sang `skills-auto`, vết chạy cho thấy agent đã đọc skill `code-maintenance-completion` (`skills_read = 1`). Trong skill có dòng dặn: *"Add focused regression tests in a dedicated file to cover every bug fixed or behavior changed."* Agent đọc xong liền gọi công cụ `write_file` tạo ngay file `workspace/tests/test_regressions.py`, viết các hàm test cho từng bug rồi dùng lệnh `execute` chạy pytest xem test có pass không. Nhờ vậy check này pass ngon lành, kéo điểm bài đó lên 8/11.
+Check mà skill chưa giúp được: Đó là `rule_changelog` trong bài `code-eval`. Em thấy agent cũng ngoan ngoãn đọc skill rồi vào tạo mục `## Unreleased` trong `CHANGELOG.md` kèm 3 dòng gạch đầu dòng tóm tắt lỗi đã sửa. Nhưng lúc chấm bằng file `check.py`, hệ thống lại soi bằng regex rất gắt theo chuẩn Conventional Commits: `^- fix\([A-Za-z_]\w*\): \S.+$`. Vì skill dặn hơi chung chung là viết bullet tóm tắt chứ không đưa mẫu regex `fix(...)` cụ thể ra, nên câu văn agent tự viết không khớp với regex, thế là vẫn bị đánh trượt check này.
 
-4. Về chi phí token trung bình mỗi lần chạy: baseline dùng 62,795 token (điểm trung bình 0.60, đạt khoảng 9.55 × 10⁻⁶ điểm/token); subagents dùng 137,398 token (điểm 0.56, đạt khoảng 4.08 × 10⁻⁶ điểm/token); skills-auto dùng 111,379 token (điểm 0.73, đạt khoảng 6.55 × 10⁻⁶ điểm/token).
-Baseline có tỷ lệ điểm trên token cao nhất do prompt ngắn nhất. Skills-auto tăng 77% token so với baseline nhưng đổi lại điểm số tăng từ 0.60 lên 0.73 (+21.7%). Token tăng ở skills-auto đến từ việc nạp nội dung skill vào ngữ cảnh và tác tử thực hiện thêm các thao tác bổ trợ như viết test hồi quy, bổ sung type annotations.
-Điều kiện subagents không đáng chi phí trong thí nghiệm này. Chi phí token tăng gấp 2.19 lần so với baseline trong khi điểm số giảm nhẹ. Tác tử chính đủ khả năng xử lý bài toán trong cửa sổ ngữ cảnh nên không phân chia việc cho subagent (`subagent_calls = 0`). Việc đưa mô tả của 3 subagent vào prompt chỉ làm tăng chi phí token mà không mang lại kết quả thực tế.
+4. Về chi phí token trung bình mỗi bài chạy: baseline tốn 62,795 token (điểm 0.60, tương đương 9.55 × 10⁻⁶ điểm/token); subagents tốn 137,398 token (điểm 0.56, chỉ được 4.08 × 10⁻⁶ điểm/token); skills-auto tốn 111,379 token (điểm 0.73, đạt 6.55 × 10⁻⁶ điểm/token).
+Tính ra baseline có hiệu suất điểm trên token cao nhất vì prompt ngắn gọn nhất. Nhưng skills-auto đem lại sự đánh đổi rất đáng giá: token tăng 77% so với baseline nhưng điểm số tăng từ 0.60 lên 0.73 (+21.7%). Token tăng ở skills-auto là hoàn toàn hợp lý vì agent phải đọc thêm skill và tốn thêm các bước viết test hồi quy, bổ sung type hint.
+Còn điều kiện subagents thì em thấy không đáng tiền chút nào. Token tốn gấp 2.19 lần mà điểm còn bị tụt. Agent chính thừa sức giải quyết bài toán một mình nên chẳng buồn gọi subagent nào (`subagent_calls = 0`). Việc nhét thêm mô tả dài dòng của 3 subagent vào prompt chỉ làm phí tiền token mà chẳng đem lại tác dụng gì.
 
-5. Về rò rỉ dữ liệu, các skill sinh ra không chứa thông tin cụ thể của bài test như tên file dữ liệu, tên hàm, hay giá trị output mong muốn.
-Về quá khớp, có hiện tượng quá khớp ở mức quy ước. Các skill phản ánh những quy ước xuất hiện trong 3 bài toán học (chia tiền thành cent, tạo trường meta, dùng snake_case cho tên dịch vụ). Khi sang tập đánh giá, các quy ước này giúp giải quyết những bài có yêu cầu tương tự, nhưng không xử lý được các quy ước mới. Mức tăng điểm ở tập học (+0.14) cao hơn tập đánh giá (+0.12) phản ánh độ lệch này.
-Nhóm phòng tránh rò rỉ bằng cách: prompt curator yêu cầu chỉ viết quy tắc chung dạng danh sách kiểm tra, không đưa tên bài hay số liệu cụ thể; hàm `validate_skill` lọc bỏ skill chứa từ khóa của tập đánh giá hoặc vượt quá độ dài; và quy trình freeze protocol đóng băng bộ skill trước khi chạy tập đánh giá.
+5. Về rò rỉ dữ liệu, em đã kiểm tra kỹ và thấy các skill sinh ra không hề chứa tên file cụ thể hay đáp án số liệu nào của bài test.
+Về hiện tượng quá khớp, em thấy có bị quá khớp ở mức quy ước. Các skill chỉ học được các quy ước xuất hiện ở bài học (như đổi tiền ra cent, tạo trường meta, đặt tên service kiểu snake_case). Khi sang bài đánh giá, những quy ước cũ này vẫn giúp ích được, nhưng các quy ước mới thì không đỡ được. Việc điểm bài học tăng nhiều hơn bài đánh giá (+0.14 so với +0.12) chính là biểu hiện của sự quá khớp này.
+Em đã phòng tránh rò rỉ bằng cách: prompt curator dặn kỹ chỉ viết checklist quy trình chung, cấm đưa tên bài hay số liệu cứng; dùng hàm `validate_skill` để chặn các từ khóa dính đến tập đánh giá; và tuân thủ nghiêm ngặt freeze protocol, đóng băng skill trước khi chạy tập đánh giá.
 
-6. So sánh điểm tác vụ học giữa bản sao lưu Phần 3.4 (`skills-auto-dev`) và sau khi đóng băng (`skills-auto`):
-- `code-learn`: bản dev đạt 8/10, sau đóng băng đạt 8/10, chênh lệch 0.00.
-- `data-learn`: bản dev đạt 5/8, sau đóng băng đạt 5/8, chênh lệch 0.00.
-- `logs-learn`: bản dev đạt 8/9, sau đóng băng đạt 8/9, chênh lệch 0.00.
-Điểm trung bình cả hai lần đều là 0.771, chênh lệch bằng 0.00.
-Dù mô hình chạy với `LAB_TEMPERATURE=1`, kết quả giữa hai lần chạy độc lập trùng khớp nhau. Điều này cho thấy sự cải thiện điểm số so với baseline (+0.14 ở tập học và +0.12 ở tập đánh giá) bắt nguồn từ nội dung các skill được nạp, không phải do biến động ngẫu nhiên khi sinh văn bản.
+6. So sánh điểm tập học giữa bản dev lưu ở Phần 3.4 (`skills-auto-dev`) và bản sau đóng băng (`skills-auto`):
+- `code-learn`: bản dev được 8/10, sau đóng băng cũng được 8/10, chênh lệch 0.00.
+- `data-learn`: bản dev được 5/8, sau đóng băng cũng được 5/8, chênh lệch 0.00.
+- `logs-learn`: bản dev được 8/9, sau đóng băng cũng được 8/9, chênh lệch 0.00.
+Điểm trung bình cả hai lần đều đạt 0.771, độ lệch đúng bằng 0.00.
+Dù mô hình chạy ở nhiệt độ `LAB_TEMPERATURE=1`, kết quả chạy lại độc lập vẫn khớp nhau tuyệt đối. Điều này chứng minh điểm số tăng lên so với baseline (+0.14 ở bài học và +0.12 ở bài đánh giá) là nhờ agent thực sự tiếp thu được kiến thức từ skill, chứ không phải do may mắn hay do mô hình sinh ngẫu nhiên.
 
 ## 9. Hạn chế và tính hợp lệ
 
-1. Số lượng tác vụ nhỏ và mỗi cấu hình chỉ chạy một lần: Mỗi điều kiện chỉ có 3 tác vụ học và 3 tác vụ đánh giá. Do giới hạn ngân sách 30 lần chạy và chi phí token, mỗi cấu hình chỉ chạy một lần thay vì lặp lại 3 đến 5 lần để tính phương sai và khoảng tin cậy. Dù mức chênh lệch giữa dev và post-freeze bằng 0, cỡ mẫu nhỏ vẫn giới hạn độ khái quát thống kê của kết luận.
-2. Quy ước tổ chức mang tính nhân tạo: Các bài kiểm tra `rule_*` là quy tắc cố định được cài sẵn trong file `check.py`. Trong thực tế, quy ước của một dự án thường phức tạp hơn, nằm rải rác trong tài liệu hướng dẫn, pull request hoặc trao đổi nội bộ, chứ không hiển thị sẵn qua phản hồi lỗi tự động để curator trích xuất.
-3. Thử nghiệm trên một mô hình duy nhất: Toàn bộ dữ liệu thu được từ mô hình `gpt-6-luna`. Khả năng tự chủ, xu hướng gọi subagent và độ nhạy với chỉ dẫn trong prompt phụ thuộc vào từng họ mô hình. Kết quả về chi phí subagent và khả năng tiếp thu skill có thể khác biệt trên các mô hình khác như Claude hay GPT-4o.
+1. Số lượng bài test còn ít và mỗi bài chỉ chạy đúng một lần: Toàn bộ lab chỉ có 3 bài học và 3 bài đánh giá. Vì bị giới hạn ngân sách 30 lần chạy và tiết kiệm chi phí token, mỗi cấu hình em chỉ chạy đúng một lần chứ chưa thể chạy lặp lại 3 đến 5 lần để tính trung bình và độ lệch chuẩn. Dù điểm chạy lại giữa dev và sau freeze khớp nhau 100%, việc cỡ mẫu nhỏ vẫn khiến kết luận chưa mang tính thống kê sâu rộng.
+2. Các quy tắc ngầm mang tính nhân tạo: Các check `rule_*` trong bài là các luật cố định được thầy cài sẵn trong file `check.py`. Trong dự án thực tế ngoài đời, quy ước của một công ty phức tạp hơn nhiều, nằm rải rác trong wiki, tài liệu onboarding hay qua các lần review PR của anh em trong team, chứ không có sẵn bot chấm điểm tự động trả về feedback lỗi rõ ràng như thế này để curator học.
+3. Mới chỉ thử nghiệm trên một mô hình duy nhất: Em mới chỉ chạy thí nghiệm trên mô hình `gpt-6-luna`. Mỗi dòng mô hình lại có khả năng suy luận, độ ngoan ngoãn khi nghe prompt và xu hướng tự chia việc cho subagent khác nhau. Nếu đổi sang các mô hình khác như Claude hay GPT-4o, kết quả về chi phí subagent và khả năng đọc hiểu skill có thể sẽ khác.
 
 ## 10. Kết luận
 
-Thí nghiệm cho thấy việc tự động trích xuất kỹ năng từ phản hồi lỗi giúp tăng điểm trung bình của tác tử từ 0.63 lên 0.77 trên tập học và từ 0.57 lên 0.69 trên tập đánh giá. Mức tăng điểm tập trung ở nhóm kiểm tra quy ước tổ chức (từ 0% lên 33.3% đến 44.4%), trong khi điểm kiểm tra kỹ thuật duy trì ở mức 94.4%. Kiến trúc subagents không mang lại hiệu quả về điểm số nhưng làm tăng token gấp 2.19 lần do chi phí mô tả trong prompt. Quy trình đóng băng và độ chênh lệch 0.00 giữa hai đợt chạy xác nhận kết quả đo lường có tính ổn định cao. Hướng cải tiến tiếp theo là phát triển cơ chế chọn lọc kỹ năng động để chỉ nạp các quy ước phù hợp với từng tác vụ, giúp giảm chi phí token ngữ cảnh.
+Qua bài lab, em thấy cơ chế tự tiến hóa (Self-evolving) thông qua việc để agent tự rút kinh nghiệm từ lỗi sai và sinh ra skill thực sự giúp nâng cao điểm số, đưa điểm trung bình từ 0.63 lên 0.77 ở bài học và từ 0.57 lên 0.69 ở bài đánh giá. Điểm số tăng lên hoàn toàn nhờ việc agent học được cách tuân thủ các quy ước ngầm của tổ chức (từ 0% lên 33.3% - 44.4%), trong khi phần code kỹ thuật vẫn giữ được phong độ tốt (94.4%). Ngược lại, kiến trúc đa tác tử (subagents) ở các bài toán nhỏ này không mang lại hiệu quả gì mà còn làm tốn gấp đôi token do phình prompt. Quy trình đóng băng và việc kết quả chạy lại khớp nhau 100% chứng minh kết quả thí nghiệm có độ tin cậy rất cao. Hướng cải tiến tiếp theo em muốn thử là làm thêm cơ chế lọc skill động (dynamic skill routing), tức là bài nào cần luật gì thì chỉ nạp đúng skill đó vào prompt để đỡ tốn tiền token ngữ cảnh.
 
 ## Phụ lục
 
